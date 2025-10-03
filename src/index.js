@@ -79,15 +79,15 @@ let pendingDeepLinkUrl = null;
 function setupProtocolHandling() {
     // Protocol registration - must be done before app is ready
     try {
-        if (!app.isDefaultProtocolClient('pickleglass')) {
-            const success = app.setAsDefaultProtocolClient('pickleglass');
+        if (!app.isDefaultProtocolClient('glassultra')) {
+            const success = app.setAsDefaultProtocolClient('glassultra');
             if (success) {
-                console.log('[Protocol] Successfully set as default protocol client for pickleglass://');
+                console.log('[Protocol] Successfully set as default protocol client for glassultra://');
             } else {
                 console.warn('[Protocol] Failed to set as default protocol client - this may affect deep linking');
             }
         } else {
-            console.log('[Protocol] Already registered as default protocol client for pickleglass://');
+            console.log('[Protocol] Already registered as default protocol client for glassultra://');
         }
     } catch (error) {
         console.error('[Protocol] Error during protocol registration:', error);
@@ -103,7 +103,7 @@ function setupProtocolHandling() {
         
         // Search through all command line arguments for a valid protocol URL
         for (const arg of commandLine) {
-            if (arg && typeof arg === 'string' && arg.startsWith('pickleglass://')) {
+            if (arg && typeof arg === 'string' && arg.startsWith('glassultra://')) {
                 // Clean up the URL by removing problematic characters
                 const cleanUrl = arg.replace(/[\\₩]/g, '');
                 
@@ -135,7 +135,7 @@ function setupProtocolHandling() {
         event.preventDefault();
         console.log('[Protocol] Received URL via open-url:', url);
         
-        if (!url || !url.startsWith('pickleglass://')) {
+        if (!url || !url.startsWith('glassultra://')) {
             console.warn('[Protocol] Invalid URL format:', url);
             return;
         }
@@ -176,7 +176,7 @@ function focusMainWindow() {
 
 if (process.platform === 'win32') {
     for (const arg of process.argv) {
-        if (arg && typeof arg === 'string' && arg.startsWith('pickleglass://')) {
+        if (arg && typeof arg === 'string' && arg.startsWith('glassultra://')) {
             // Clean up the URL by removing problematic characters (korean characters issue...)
             const cleanUrl = arg.replace(/[\\₩]/g, '');
             
@@ -498,7 +498,7 @@ async function handleCustomUrl(url) {
         console.log('[Custom URL] Processing URL:', url);
         
         // Validate and clean URL
-        if (!url || typeof url !== 'string' || !url.startsWith('pickleglass://')) {
+        if (!url || typeof url !== 'string' || !url.startsWith('glassultra://')) {
             console.error('[Custom URL] Invalid URL format:', url);
             return;
         }
