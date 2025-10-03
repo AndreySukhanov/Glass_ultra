@@ -1,36 +1,30 @@
 # electron-builder.yml
 
 # The unique application ID
-appId: com.pickle.glass
+appId: com.glassultra.app
 
 # The user-facing application name
-productName: Glass
+productName: Glass Ultra
 
 # Publish configuration for GitHub releases
 publish:
     provider: github
-    owner: pickle-com
-    repo: glass
+    owner: AndreySukhanov
+    repo: Glass_ultra
     releaseType: draft
 
 # Protocols configuration for deep linking
 protocols:
-    name: PickleGlass Protocol
-    schemes: 
-        - pickleglass
+    name: Glass Ultra Protocol
+    schemes:
+        - glassultra
 
 # List of files to be included in the app package
 files:
     - src/**/*
     - package.json
-    - pickleglass_web/backend_node/**/*
     - '!**/node_modules/electron/**'
     - public/build/**/*
-
-# Additional resources to be copied into the app's resources directory
-extraResources:
-    - from: pickleglass_web/out
-      to: out
 
 asarUnpack:
     - "src/ui/assets/SystemAudioDump"
@@ -46,11 +40,6 @@ win:
         - target: portable
           arch: x64
     requestedExecutionLevel: asInvoker
-    signAndEditExecutable: true
-    cscLink: build\certs\glass-dev.pfx
-    cscKeyPassword: "${env.CSC_KEY_PASSWORD}"
-    signtoolOptions:
-      certificateSubjectName: "Glass Dev Code Signing"
 
 # NSIS installer configuration for Windows
 nsis:
@@ -60,7 +49,7 @@ nsis:
     deleteAppDataOnUninstall: true
     createDesktopShortcut: always
     createStartMenuShortcut: true
-    shortcutName: Glass
+    shortcutName: Glass Ultra
 
 # macOS specific configuration
 mac:
