@@ -257,9 +257,12 @@ class AskService {
             }
             console.log(`[AskService] Using model: ${modelInfo.model} for provider: ${modelInfo.provider}`);
 
-            // Save user message to DB (don't wait for it)
-            askRepository.addAiMessage({ sessionId, role: 'user', content: userPrompt.trim() })
-                .catch(err => console.error('[AskService] Error saving user message:', err));
+            // Save user message to DB
+            try {
+                askRepository.addAiMessage({ sessionId, role: 'user', content: userPrompt.trim() });
+            } catch (err) {
+                console.error('[AskService] Error saving user message:', err);
+            }
 
             const conversationHistory = this._formatConversationForPrompt(conversationHistoryRaw);
             let systemPrompt = getSystemPrompt('pickle_glass_analysis', conversationHistory, false);
