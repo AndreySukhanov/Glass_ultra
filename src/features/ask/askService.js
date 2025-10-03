@@ -15,6 +15,10 @@ const getWindowPool = () => {
 const sessionRepository = require('../common/repositories/session');
 const askRepository = require('./repositories');
 const { getSystemPrompt } = require('../common/prompts/promptBuilder');
+const systemPromptRepository = require('../common/repositories/systemPrompt/sqlite.repository');
+const fileAttachmentRepository = require('../common/repositories/fileAttachment/sqlite.repository');
+const authService = require('../common/services/authService');
+const ragService = require('../common/services/ragService');
 const path = require('node:path');
 const fs = require('node:fs');
 const os = require('os');
@@ -254,7 +258,21 @@ class AskService {
 
             const conversationHistory = this._formatConversationForPrompt(conversationHistoryRaw);
 
-            const systemPrompt = getSystemPrompt('pickle_glass_analysis', conversationHistory, false);
+            let systemPrompt = getSystemPrompt('pickle_glass_analysis', conversationHistory, false);
+
+            // Add custom system prompt if exists
+            try {
+                const user = authService.getCurrentUser();
+                if (user) {
+                    const customPrompt = systemPromptRepository.getActivePrompt(user.uid);
+                    if (customPrompt && customPrompt.prompt) {
+                        systemPrompt += '\n\nAdditional Context:\n' + customPrompt.prompt;
+                        console.log('[AskService] Added custom system prompt');
+                    }
+                }
+            } catch (error) {
+                console.error('[AskService] Error loading custom system prompt:', error);
+            }
 
             const messages = [
                 { role: 'system', content: systemPrompt },
@@ -265,6 +283,73 @@ class AskService {
                     ],
                 },
             ];
+
+            // Add file attachments using RAG (Retrieval-Augmented Generation)
+            try {
+                const user = authService.getCurrentUser();
+                if (user) {
+                    const attachments = fileAttachmentRepository.getActiveAttachments(user.uid);
+                    if (attachments && attachments.length > 0) {
+                        // Initialize RAG if needed
+                        if (!ragService.initialized) {
+                            const currentApiKey = await modelStateService.getApiKey('openai');
+                            await ragService.initialize(currentApiKey);
+                        }
+
+                        // Use RAG to find relevant chunks instead of sending all content
+                        console.log('[AskService] Using RAG to retrieve relevant document chunks...');
+                        const relevantChunks = await ragService.search(userPrompt, {
+                            topK: 5,              // Get top 5 most relevant chunks
+                            minScore: 0.3,        // Minimum similarity score
+                            documentIds: attachments.map(a => a.id)  // Only search in active documents
+                        });
+
+                        if (relevantChunks.length > 0) {
+                            let filesContext = '\n\nRelevant Document Excerpts:\n';
+                            relevantChunks.forEach((chunk, idx) => {
+                                filesContext += `\n--- ${chunk.filename} (Relevance: ${(chunk.score * 100).toFixed(1)}%) ---\n${chunk.text}\n`;
+                            });
+                            messages[1].content.push({
+                                type: 'text',
+                                text: filesContext
+                            });
+                            console.log(`[AskService] Added ${relevantChunks.length} relevant chunks from ${attachments.length} documents`);
+                        } else {
+                            console.log('[AskService] No relevant chunks found, falling back to full attachments');
+                            // Fallback: if RAG finds nothing, add first few files
+                            let filesContext = '\n\nAttached Files:\n';
+                            attachments.slice(0, 2).forEach(file => {
+                                filesContext += `\n--- ${file.filename} ---\n${file.content.substring(0, 2000)}...\n`;
+                            });
+                            messages[1].content.push({
+                                type: 'text',
+                                text: filesContext
+                            });
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('[AskService] Error with RAG, falling back to simple attachments:', error);
+                // Fallback to old method if RAG fails
+                try {
+                    const user = authService.getCurrentUser();
+                    if (user) {
+                        const attachments = fileAttachmentRepository.getActiveAttachments(user.uid);
+                        if (attachments && attachments.length > 0) {
+                            let filesContext = '\n\nAttached Files:\n';
+                            attachments.slice(0, 2).forEach(file => {
+                                filesContext += `\n--- ${file.filename} ---\n${file.content.substring(0, 2000)}...\n`;
+                            });
+                            messages[1].content.push({
+                                type: 'text',
+                                text: filesContext
+                            });
+                        }
+                    }
+                } catch (fallbackError) {
+                    console.error('[AskService] Fallback also failed:', fallbackError);
+                }
+            }
 
             if (screenshotBase64) {
                 messages[1].content.push({

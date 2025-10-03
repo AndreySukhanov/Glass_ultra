@@ -114,6 +114,30 @@ const LATEST_SCHEMA = {
             { name: 'uid', type: 'TEXT PRIMARY KEY' },
             { name: 'keychain_completed', type: 'INTEGER DEFAULT 0' }
         ]
+    },
+    system_prompts: {
+        columns: [
+            { name: 'id', type: 'TEXT PRIMARY KEY' },
+            { name: 'uid', type: 'TEXT NOT NULL' },
+            { name: 'prompt', type: 'TEXT NOT NULL' },
+            { name: 'is_active', type: 'INTEGER DEFAULT 0' },
+            { name: 'created_at', type: 'INTEGER' },
+            { name: 'updated_at', type: 'INTEGER' }
+        ]
+    },
+    file_attachments: {
+        columns: [
+            { name: 'id', type: 'TEXT PRIMARY KEY' },
+            { name: 'uid', type: 'TEXT NOT NULL' },
+            { name: 'filename', type: 'TEXT NOT NULL' },
+            { name: 'filepath', type: 'TEXT NOT NULL' },
+            { name: 'filesize', type: 'INTEGER' },
+            { name: 'mimetype', type: 'TEXT' },
+            { name: 'content', type: 'TEXT' },
+            { name: 'is_active', type: 'INTEGER DEFAULT 1' },
+            { name: 'created_at', type: 'INTEGER' },
+            { name: 'updated_at', type: 'INTEGER' }
+        ]
     }
 };
 

@@ -147,75 +147,38 @@ class WindowLayoutManager {
         }
     
         const { width: screenWidth, height: screenHeight, x: workAreaX, y: workAreaY } = display.workArea;
-    
-        const ask = this.windowPool.get('ask');
+
         const listen = this.windowPool.get('listen');
-    
-        const askVis = visibility.ask && ask && !ask.isDestroyed();
         const listenVis = visibility.listen && listen && !listen.isDestroyed();
-    
-        if (!askVis && !listenVis) return {};
-    
+
+        if (!listenVis) return {};
+
         const PAD = 8;
-        const headerTopRel = headerBounds.y - workAreaY;
-        const headerBottomRel = headerTopRel + headerBounds.height;
         const headerCenterXRel = headerBounds.x - workAreaX + headerBounds.width / 2;
-        
+
         const relativeX = headerCenterXRel / screenWidth;
         const relativeY = (headerBounds.y - workAreaY) / screenHeight;
         const strategy = this.determineLayoutStrategy(headerBounds, screenWidth, screenHeight, relativeX, relativeY, workAreaX, workAreaY);
-    
-        const askB = askVis ? ask.getBounds() : null;
-        const listenB = listenVis ? listen.getBounds() : null;
 
-        if (askVis) {
-            console.log(`[Layout Debug] Ask Window Bounds: height=${askB.height}, width=${askB.width}`);
-        }
-        if (listenVis) {
-            console.log(`[Layout Debug] Listen Window Bounds: height=${listenB.height}, width=${listenB.width}`);
-        }
-    
+        const listenB = listen.getBounds();
+
+        console.log(`[Layout Debug] Listen Window Bounds: height=${listenB.height}, width=${listenB.width}`);
+
         const layout = {};
-    
-        if (askVis && listenVis) {
-            let askXRel = headerCenterXRel - (askB.width / 2);
-            let listenXRel = askXRel - listenB.width - PAD;
-    
-            if (listenXRel < PAD) {
-                listenXRel = PAD;
-                askXRel = listenXRel + listenB.width + PAD;
-            }
-            if (askXRel + askB.width > screenWidth - PAD) {
-                askXRel = screenWidth - PAD - askB.width;
-                listenXRel = askXRel - listenB.width - PAD;
-            }
-            
-            if (strategy.primary === 'above') {
-                const windowBottomAbs = headerBounds.y - PAD;
-                layout.ask = { x: Math.round(askXRel + workAreaX), y: Math.round(windowBottomAbs - askB.height), width: askB.width, height: askB.height };
-                layout.listen = { x: Math.round(listenXRel + workAreaX), y: Math.round(windowBottomAbs - listenB.height), width: listenB.width, height: listenB.height };
-            } else { // 'below'
-                const yAbs = headerBounds.y + headerBounds.height + PAD;
-                layout.ask = { x: Math.round(askXRel + workAreaX), y: Math.round(yAbs), width: askB.width, height: askB.height };
-                layout.listen = { x: Math.round(listenXRel + workAreaX), y: Math.round(yAbs), width: listenB.width, height: listenB.height };
-            }
-        } else { // Single window
-            const winName = askVis ? 'ask' : 'listen';
-            const winB = askVis ? askB : listenB;
-            if (!winB) return {};
-    
-            let xRel = headerCenterXRel - winB.width / 2;
-            xRel = Math.max(PAD, Math.min(screenWidth - winB.width - PAD, xRel));
-    
-            let yPos;
-            if (strategy.primary === 'above') {
-                yPos = (headerBounds.y - workAreaY) - PAD - winB.height;
-            } else { // 'below'
-                yPos = (headerBounds.y - workAreaY) + headerBounds.height + PAD;
-            }
-            
-            layout[winName] = { x: Math.round(xRel + workAreaX), y: Math.round(yPos + workAreaY), width: winB.width, height: winB.height };
+
+        // Single window (listen only)
+        let xRel = headerCenterXRel - listenB.width / 2;
+        xRel = Math.max(PAD, Math.min(screenWidth - listenB.width - PAD, xRel));
+
+        let yPos;
+        if (strategy.primary === 'above') {
+            yPos = (headerBounds.y - workAreaY) - PAD - listenB.height;
+        } else { // 'below'
+            yPos = (headerBounds.y - workAreaY) + headerBounds.height + PAD;
         }
+
+        layout.listen = { x: Math.round(xRel + workAreaX), y: Math.round(yPos + workAreaY), width: listenB.width, height: listenB.height };
+
         return layout;
     }
     

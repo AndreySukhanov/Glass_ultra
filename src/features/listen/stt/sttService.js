@@ -77,9 +77,14 @@ class SttService {
         const finalText = (this.myCompletionBuffer + this.myCurrentUtterance).trim();
         if (!this.modelInfo || !finalText) return;
 
+        console.log(`[SttService] flushMyCompletion: "${finalText}"`);
+
         // Notify completion callback
         if (this.onTranscriptionComplete) {
+            console.log('[SttService] Calling onTranscriptionComplete for Me');
             this.onTranscriptionComplete('Me', finalText);
+        } else {
+            console.warn('[SttService] onTranscriptionComplete callback not set!');
         }
         
         // Send to renderer as final
@@ -103,10 +108,15 @@ class SttService {
     flushTheirCompletion() {
         const finalText = (this.theirCompletionBuffer + this.theirCurrentUtterance).trim();
         if (!this.modelInfo || !finalText) return;
-        
+
+        console.log(`[SttService] flushTheirCompletion: "${finalText}"`);
+
         // Notify completion callback
         if (this.onTranscriptionComplete) {
+            console.log('[SttService] Calling onTranscriptionComplete for Them');
             this.onTranscriptionComplete('Them', finalText);
+        } else {
+            console.warn('[SttService] onTranscriptionComplete callback not set!');
         }
         
         // Send to renderer as final

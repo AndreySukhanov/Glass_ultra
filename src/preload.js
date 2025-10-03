@@ -242,10 +242,29 @@ contextBridge.exposeInMainWorld('api', {
     
     // App Control
     quitApplication: () => ipcRenderer.invoke('quit-application'),
+    openDevTools: () => ipcRenderer.invoke('open-devtools'),
     
     // Progress Tracking
     pullOllamaModel: (modelName) => ipcRenderer.invoke('ollama:pull-model', modelName),
-    
+
+    // System Prompts
+    getActiveSystemPrompt: () => ipcRenderer.invoke('systemPrompt:getActive'),
+    getAllSystemPrompts: () => ipcRenderer.invoke('systemPrompt:getAll'),
+    saveSystemPrompt: (prompt, isActive) => ipcRenderer.invoke('systemPrompt:save', { prompt, isActive }),
+    updateSystemPrompt: (id, prompt, isActive) => ipcRenderer.invoke('systemPrompt:update', { id, prompt, isActive }),
+    deleteSystemPrompt: (id) => ipcRenderer.invoke('systemPrompt:delete', { id }),
+    setActiveSystemPrompt: (id) => ipcRenderer.invoke('systemPrompt:setActive', { id }),
+
+    // File Attachments
+    getActiveFileAttachments: () => ipcRenderer.invoke('fileAttachment:getActive'),
+    getAllFileAttachments: () => ipcRenderer.invoke('fileAttachment:getAll'),
+    addFileAttachment: (filepath, filename, content, mimetype) => ipcRenderer.invoke('fileAttachment:add', { filepath, filename, content, mimetype }),
+    extractAndAddFileAttachment: (filepath, filename, mimetype) => ipcRenderer.invoke('fileAttachment:extractAndAdd', { filepath, filename, mimetype }),
+    toggleFileAttachment: (id, isActive) => ipcRenderer.invoke('fileAttachment:toggle', { id, isActive }),
+    deleteFileAttachment: (id) => ipcRenderer.invoke('fileAttachment:delete', { id }),
+    showOpenFileDialog: () => ipcRenderer.invoke('fileAttachment:showOpenDialog'),
+    getFileAttachmentById: (id) => ipcRenderer.invoke('fileAttachment:getById', { id }),
+
     // Listeners
     onUserStateChanged: (callback) => ipcRenderer.on('user-state-changed', callback),
     removeOnUserStateChanged: (callback) => ipcRenderer.removeListener('user-state-changed', callback),
@@ -302,5 +321,13 @@ contextBridge.exposeInMainWorld('api', {
     // Listeners
     onChangeListenCaptureState: (callback) => ipcRenderer.on('change-listen-capture-state', callback),
     removeOnChangeListenCaptureState: (callback) => ipcRenderer.removeListener('change-listen-capture-state', callback)
+  },
+
+  // Generic IPC receiver for any channel
+  receive: (channel, callback) => {
+    ipcRenderer.on(channel, (event, ...args) => callback(...args));
+  },
+  removeReceive: (channel, callback) => {
+    ipcRenderer.removeListener(channel, callback);
   }
 });

@@ -12,6 +12,9 @@ const askService = require('../features/ask/askService');
 const listenService = require('../features/listen/listenService');
 const permissionService = require('../features/common/services/permissionService');
 const encryptionService = require('../features/common/services/encryptionService');
+const systemPromptRepository = require('../features/common/repositories/systemPrompt/sqlite.repository');
+const fileAttachmentRepository = require('../features/common/repositories/fileAttachment/sqlite.repository');
+const ragService = require('../features/common/services/ragService');
 
 module.exports = {
   // Renderer로부터의 요청을 수신하고 서비스로 전달
@@ -55,6 +58,20 @@ module.exports = {
 
     // App
     ipcMain.handle('quit-application', () => app.quit());
+    ipcMain.handle('open-devtools', () => {
+      const settingsWindow = BrowserWindow.getAllWindows().find(win => win.webContents.getURL().includes('settings'));
+      if (settingsWindow) {
+        settingsWindow.webContents.openDevTools({ mode: 'detach' });
+        console.log('[FeatureBridge] DevTools opened for settings window');
+      } else {
+        // If no settings window, open for first available window
+        const focusedWindow = BrowserWindow.getFocusedWindow();
+        if (focusedWindow) {
+          focusedWindow.webContents.openDevTools({ mode: 'detach' });
+          console.log('[FeatureBridge] DevTools opened for focused window');
+        }
+      }
+    });
 
     // Whisper
     ipcMain.handle('whisper:download-model', async (event, modelId) => await whisperService.handleDownloadModel(modelId));
@@ -227,6 +244,154 @@ module.exports = {
     // 전체 상태 조회
     ipcMain.handle('localai:get-all-states', async (event) => {
       return await localAIManager.getAllServiceStates();
+    });
+
+    // System Prompts
+    ipcMain.handle('systemPrompt:getActive', async () => {
+      const user = authService.getCurrentUser();
+      if (!user) throw new Error('No authenticated user');
+      return systemPromptRepository.getActivePrompt(user.uid);
+    });
+
+    ipcMain.handle('systemPrompt:getAll', async () => {
+      const user = authService.getCurrentUser();
+      if (!user) throw new Error('No authenticated user');
+      return systemPromptRepository.getAllPrompts(user.uid);
+    });
+
+    ipcMain.handle('systemPrompt:save', async (event, { prompt, isActive }) => {
+      const user = authService.getCurrentUser();
+      if (!user) throw new Error('No authenticated user');
+      return systemPromptRepository.savePrompt(user.uid, prompt, isActive);
+    });
+
+    ipcMain.handle('systemPrompt:update', async (event, { id, prompt, isActive }) => {
+      const user = authService.getCurrentUser();
+      if (!user) throw new Error('No authenticated user');
+      return systemPromptRepository.updatePrompt(id, user.uid, prompt, isActive);
+    });
+
+    ipcMain.handle('systemPrompt:delete', async (event, { id }) => {
+      const user = authService.getCurrentUser();
+      if (!user) throw new Error('No authenticated user');
+      return systemPromptRepository.deletePrompt(id, user.uid);
+    });
+
+    ipcMain.handle('systemPrompt:setActive', async (event, { id }) => {
+      const user = authService.getCurrentUser();
+      if (!user) throw new Error('No authenticated user');
+      return systemPromptRepository.setActivePrompt(id, user.uid);
+    });
+
+    // File Attachments
+    ipcMain.handle('fileAttachment:getActive', async () => {
+      const user = authService.getCurrentUser();
+      if (!user) throw new Error('No authenticated user');
+      return fileAttachmentRepository.getActiveAttachments(user.uid);
+    });
+
+    ipcMain.handle('fileAttachment:getAll', async () => {
+      const user = authService.getCurrentUser();
+      if (!user) throw new Error('No authenticated user');
+      return fileAttachmentRepository.getAllAttachments(user.uid);
+    });
+
+    ipcMain.handle('fileAttachment:add', async (event, { filepath, filename, content, mimetype }) => {
+      const user = authService.getCurrentUser();
+      if (!user) throw new Error('No authenticated user');
+      return fileAttachmentRepository.addAttachment(user.uid, filepath, filename, content, mimetype);
+    });
+
+    // File dialog for selecting files to attach
+    ipcMain.handle('fileAttachment:showOpenDialog', async () => {
+      const { dialog } = require('electron');
+      const result = await dialog.showOpenDialog({
+        properties: ['openFile'],
+        filters: [
+          { name: 'Documents', extensions: ['pdf', 'docx', 'txt', 'md', 'csv', 'json', 'xml', 'html', 'htm'] },
+          { name: 'All Files', extensions: ['*'] }
+        ]
+      });
+
+      if (result.canceled) {
+        return { canceled: true };
+      }
+
+      return {
+        canceled: false,
+        filePath: result.filePaths[0]
+      };
+    });
+
+    ipcMain.handle('fileAttachment:extractAndAdd', async (event, { filepath, filename, mimetype }) => {
+      const user = authService.getCurrentUser();
+      if (!user) throw new Error('No authenticated user');
+
+      try {
+        const { extractTextFromDocument } = require('../features/common/utils/documentParser');
+        const result = await extractTextFromDocument(filepath, mimetype);
+
+        if (!result.text) {
+          return { success: false, error: result.error || 'Failed to extract text from document' };
+        }
+
+        // Add to database
+        const attachment = await fileAttachmentRepository.addAttachment(user.uid, filepath, filename, result.text, mimetype);
+
+        // Initialize RAG service if needed
+        if (!ragService.initialized) {
+          const currentApiKey = await modelStateService.getApiKey('openai');
+          await ragService.initialize(currentApiKey);
+        }
+
+        // Add document to RAG vector store
+        try {
+          await ragService.addDocument(
+            attachment.id,
+            filename,
+            result.text,
+            { userId: user.uid, filepath, mimetype }
+          );
+          console.log('[FeatureBridge] Document added to RAG vector store');
+        } catch (ragError) {
+          console.warn('[FeatureBridge] Failed to add to RAG (continuing anyway):', ragError.message);
+          // Don't fail the whole operation if RAG fails
+        }
+
+        return { success: true, error: result.error };
+      } catch (error) {
+        console.error('[FeatureBridge] Error extracting and adding file:', error);
+        return { success: false, error: error.message };
+      }
+    });
+
+    ipcMain.handle('fileAttachment:toggle', async (event, { id, isActive }) => {
+      const user = authService.getCurrentUser();
+      if (!user) throw new Error('No authenticated user');
+      return fileAttachmentRepository.toggleAttachment(id, user.uid, isActive);
+    });
+
+    ipcMain.handle('fileAttachment:delete', async (event, { id }) => {
+      const user = authService.getCurrentUser();
+      if (!user) throw new Error('No authenticated user');
+
+      // Remove from RAG vector store
+      try {
+        if (ragService.initialized) {
+          await ragService.removeDocument(id);
+          console.log('[FeatureBridge] Document removed from RAG vector store');
+        }
+      } catch (ragError) {
+        console.warn('[FeatureBridge] Failed to remove from RAG:', ragError.message);
+      }
+
+      return fileAttachmentRepository.deleteAttachment(id, user.uid);
+    });
+
+    ipcMain.handle('fileAttachment:getById', async (event, { id }) => {
+      const user = authService.getCurrentUser();
+      if (!user) throw new Error('No authenticated user');
+      return fileAttachmentRepository.getAttachmentById(id, user.uid);
     });
 
     console.log('[FeatureBridge] Initialized with all feature handlers.');

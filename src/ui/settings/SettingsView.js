@@ -158,6 +158,109 @@ export class SettingsView extends LitElement {
             color: rgba(255, 255, 255, 0.9);
         }
 
+        /* System Prompt Section */
+        .system-prompt-section {
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .system-prompt-textarea {
+            width: 100%;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 6px;
+            color: white;
+            font-size: 11px;
+            padding: 8px;
+            margin-bottom: 8px;
+            resize: vertical;
+            min-height: 60px;
+            font-family: 'Helvetica Neue', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            box-sizing: border-box;
+        }
+
+        .system-prompt-textarea::placeholder {
+            color: rgba(255, 255, 255, 0.3);
+        }
+
+        /* File Attachments Section */
+        .file-attachments-section {
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .file-list {
+            margin-top: 8px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .file-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 6px 8px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 4px;
+            font-size: 11px;
+            opacity: 0.5;
+        }
+
+        .file-item.active {
+            opacity: 1;
+            background: rgba(100, 200, 255, 0.1);
+        }
+
+        .file-name {
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .file-actions {
+            display: flex;
+            gap: 4px;
+        }
+
+        .file-toggle-btn,
+        .file-delete-btn {
+            background: none;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: white;
+            border-radius: 3px;
+            padding: 2px 6px;
+            font-size: 12px;
+            cursor: pointer;
+        }
+
+        .file-toggle-btn:hover,
+        .file-delete-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .no-files-message {
+            margin-top: 8px;
+            padding: 8px;
+            text-align: center;
+            font-size: 11px;
+            color: rgba(255, 255, 255, 0.4);
+            font-style: italic;
+        }
+
+        .section-header {
+            margin-bottom: 8px;
+        }
+
+        .section-title {
+            font-size: 12px;
+            font-weight: 500;
+            color: rgba(255, 255, 255, 0.9);
+        }
+
         /* Buttons Section */
         .buttons-section {
             display: flex;
@@ -537,6 +640,11 @@ export class SettingsView extends LitElement {
         this.handleUsePicklesKey = this.handleUsePicklesKey.bind(this)
         this.autoUpdateEnabled = true;
         this.autoUpdateLoading = true;
+        // System prompts
+        this.systemPromptText = '';
+        this.activeSystemPrompt = null;
+        // File attachments
+        this.fileAttachments = [];
         this.loadInitialData();
         //////// after_modelStateService ////////
     }
@@ -913,11 +1021,13 @@ export class SettingsView extends LitElement {
 
     connectedCallback() {
         super.connectedCallback();
-        
+
         this.setupEventListeners();
         this.setupIpcListeners();
         this.setupWindowResize();
         this.loadAutoUpdateSetting();
+        this.loadSystemPrompt();
+        this.loadFileAttachments();
         // Force one height calculation immediately (innerHeight may be 0 at first)
         setTimeout(() => this.updateScrollHeight(), 0);
     }
@@ -1146,6 +1256,130 @@ export class SettingsView extends LitElement {
     handleFirebaseLogout() {
         console.log('Firebase Logout clicked');
         window.api.settingsView.firebaseLogout();
+    }
+
+    async handleSaveSystemPrompt() {
+        if (!window.api || !this.systemPromptText.trim()) return;
+
+        try {
+            console.log('[SettingsView] Saving system prompt');
+            await window.api.settingsView.saveSystemPrompt(this.systemPromptText.trim(), true);
+            this.activeSystemPrompt = await window.api.settingsView.getActiveSystemPrompt();
+            this.requestUpdate();
+        } catch (error) {
+            console.error('[SettingsView] Error saving system prompt:', error);
+        }
+    }
+
+    async handleAddFileAttachment() {
+        if (!window.api) return;
+
+        try {
+            // Show native file picker dialog (has access to full file path)
+            const dialogResult = await window.api.settingsView.showOpenFileDialog();
+
+            if (dialogResult.canceled) {
+                console.log('[SettingsView] File selection canceled');
+                return;
+            }
+
+            const filepath = dialogResult.filePath;
+            const filename = filepath.split(/[\\/]/).pop(); // Get filename from path
+
+            console.log('[SettingsView] Adding file attachment:', filename, 'Path:', filepath);
+
+            // Determine mimetype from extension
+            const ext = filename.split('.').pop().toLowerCase();
+            const mimetypes = {
+                'pdf': 'application/pdf',
+                'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                'txt': 'text/plain',
+                'md': 'text/markdown',
+                'csv': 'text/csv',
+                'json': 'application/json',
+                'xml': 'application/xml',
+                'html': 'text/html',
+                'htm': 'text/html'
+            };
+            const mimetype = mimetypes[ext] || 'text/plain';
+
+            // Request extraction from main process
+            const result = await window.api.settingsView.extractAndAddFileAttachment(filepath, filename, mimetype);
+
+            if (result.error) {
+                console.warn('[SettingsView] File extraction warning:', result.error);
+                // Could show a warning toast to user
+            }
+
+            if (result.success) {
+                await this.loadFileAttachments();
+                console.log('[SettingsView] File added successfully');
+            } else {
+                console.error('[SettingsView] Failed to add file:', result.error);
+                // Could show error toast to user
+            }
+        } catch (error) {
+            console.error('[SettingsView] Error adding file attachment:', error);
+            // Could show error toast to user
+        }
+    }
+
+    async handleToggleFile(id, isActive) {
+        if (!window.api) return;
+
+        try {
+            console.log('[SettingsView] Toggling file:', id, isActive);
+            await window.api.settingsView.toggleFileAttachment(id, isActive);
+            await this.loadFileAttachments();
+        } catch (error) {
+            console.error('[SettingsView] Error toggling file:', error);
+        }
+    }
+
+    async handleDeleteFile(id) {
+        if (!window.api) return;
+
+        try {
+            console.log('[SettingsView] Deleting file:', id);
+            await window.api.settingsView.deleteFileAttachment(id);
+            await this.loadFileAttachments();
+        } catch (error) {
+            console.error('[SettingsView] Error deleting file:', error);
+        }
+    }
+
+    handleOpenDevTools() {
+        if (window.api && window.api.settingsView.openDevTools) {
+            console.log('[SettingsView] Opening DevTools...');
+            window.api.settingsView.openDevTools();
+        } else {
+            console.error('[SettingsView] DevTools API not available');
+        }
+    }
+
+    async loadSystemPrompt() {
+        if (!window.api) return;
+
+        try {
+            this.activeSystemPrompt = await window.api.settingsView.getActiveSystemPrompt();
+            if (this.activeSystemPrompt) {
+                this.systemPromptText = this.activeSystemPrompt.prompt;
+            }
+            this.requestUpdate();
+        } catch (error) {
+            console.error('[SettingsView] Error loading system prompt:', error);
+        }
+    }
+
+    async loadFileAttachments() {
+        if (!window.api) return;
+
+        try {
+            this.fileAttachments = await window.api.settingsView.getAllFileAttachments();
+            this.requestUpdate();
+        } catch (error) {
+            console.error('[SettingsView] Error loading file attachments:', error);
+        }
     }
 
     async handleOllamaShutdown() {
@@ -1416,6 +1650,50 @@ export class SettingsView extends LitElement {
                     </div>
                 </div>
 
+                <div class="system-prompt-section">
+                    <div class="section-header">
+                        <span class="section-title">System Prompt</span>
+                    </div>
+                    <textarea
+                        class="system-prompt-textarea"
+                        placeholder="Enter system prompt to provide context for LLM..."
+                        .value=${this.systemPromptText}
+                        @input=${(e) => { this.systemPromptText = e.target.value; }}
+                        rows="4"
+                    ></textarea>
+                    <button class="settings-button full-width" @click=${this.handleSaveSystemPrompt}>
+                        <span>Save System Prompt</span>
+                    </button>
+                </div>
+
+                <div class="file-attachments-section">
+                    <div class="section-header">
+                        <span class="section-title">File Attachments</span>
+                    </div>
+                    <button class="settings-button full-width" @click=${this.handleAddFileAttachment}>
+                        <span>+ Add File</span>
+                    </button>
+                    ${this.fileAttachments.length > 0 ? html`
+                        <div class="file-list">
+                            ${this.fileAttachments.map(file => html`
+                                <div class="file-item ${file.is_active ? 'active' : ''}">
+                                    <span class="file-name">${file.filename}</span>
+                                    <div class="file-actions">
+                                        <button class="file-toggle-btn" @click=${() => this.handleToggleFile(file.id, !file.is_active)}>
+                                            ${file.is_active ? '✓' : '○'}
+                                        </button>
+                                        <button class="file-delete-btn" @click=${() => this.handleDeleteFile(file.id)}>
+                                            ×
+                                        </button>
+                                    </div>
+                                </div>
+                            `)}
+                        </div>
+                    ` : html`
+                        <div class="no-files-message">No files attached yet</div>
+                    `}
+                </div>
+
                 <div class="buttons-section">
                     <button class="settings-button full-width" @click=${this.handlePersonalize}>
                         <span>Personalize / Meeting Notes</span>
@@ -1436,7 +1714,11 @@ export class SettingsView extends LitElement {
                     <button class="settings-button full-width" @click=${this.handleToggleInvisibility}>
                         <span>${this.isContentProtectionOn ? 'Disable Invisibility' : 'Enable Invisibility'}</span>
                     </button>
-                    
+
+                    <button class="settings-button full-width" @click=${this.handleOpenDevTools}>
+                        <span>🔧 Open DevTools (Debug)</span>
+                    </button>
+
                     <div class="bottom-buttons">
                         ${this.firebaseUser
                             ? html`

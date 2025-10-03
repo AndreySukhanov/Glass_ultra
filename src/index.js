@@ -7,6 +7,37 @@
 
 require('dotenv').config();
 
+// Handle EPIPE errors globally to prevent crashes
+process.stdout.on('error', (err) => {
+    if (err.code === 'EPIPE') {
+        // Ignore EPIPE errors - common on Windows when console is closed
+        return;
+    }
+    console.error('stdout error:', err);
+});
+
+process.stderr.on('error', (err) => {
+    if (err.code === 'EPIPE') {
+        // Ignore EPIPE errors
+        return;
+    }
+    console.error('stderr error:', err);
+});
+
+// Catch unhandled promise rejections
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
+// Catch uncaught exceptions
+process.on('uncaughtException', (error) => {
+    if (error.code === 'EPIPE') {
+        // Ignore EPIPE errors
+        return;
+    }
+    console.error('Uncaught Exception:', error);
+});
+
 if (require('electron-squirrel-startup')) {
     process.exit(0);
 }
@@ -170,6 +201,24 @@ if (!gotTheLock) {
 setupProtocolHandling();
 
 app.whenReady().then(async () => {
+
+    // Set Content Security Policy to prevent security warnings
+    session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+        callback({
+            responseHeaders: {
+                ...details.responseHeaders,
+                'Content-Security-Policy': [
+                    "default-src 'self' 'unsafe-inline' data: blob: https:; " +
+                    "script-src 'self' 'unsafe-inline' 'unsafe-eval'; " +
+                    "style-src 'self' 'unsafe-inline'; " +
+                    "img-src 'self' data: blob: https:; " +
+                    "font-src 'self' data:; " +
+                    "connect-src 'self' https: wss: ws:; " +
+                    "media-src 'self' blob:;"
+                ]
+            }
+        });
+    });
 
     // Setup native loopback audio capture for Windows
     session.defaultSession.setDisplayMediaRequestHandler((request, callback) => {

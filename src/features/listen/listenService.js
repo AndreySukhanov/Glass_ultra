@@ -41,11 +41,17 @@ class ListenService {
 
     sendToRenderer(channel, data) {
         const { windowPool } = require('../../window/windowManager');
-        const listenWindow = windowPool?.get('listen');
-        
-        if (listenWindow && !listenWindow.isDestroyed()) {
-            listenWindow.webContents.send(channel, data);
-        }
+
+        // Send to all windows that might need audio capture events
+        const windows = ['header', 'ask'];
+
+        windows.forEach(windowName => {
+            const window = windowPool?.get(windowName);
+            if (window && !window.isDestroyed()) {
+                window.webContents.send(channel, data);
+                console.log(`[ListenService] Sent ${channel} to ${windowName} window`);
+            }
+        });
     }
 
     initialize() {
@@ -80,7 +86,9 @@ class ListenService {
                 case 'Done':
                     console.log('[ListenService] changeSession to "Done"');
                     internalBridge.emit('window:requestVisibility', { name: 'listen', visible: false });
-                    listenWindow.webContents.send('session-state-changed', { isActive: false });
+                    if (listenWindow && !listenWindow.isDestroyed()) {
+                        listenWindow.webContents.send('session-state-changed', { isActive: false });
+                    }
                     break;
         
                 default:
@@ -98,12 +106,36 @@ class ListenService {
 
     async handleTranscriptionComplete(speaker, text) {
         console.log(`[ListenService] Transcription complete: ${speaker} - ${text}`);
-        
+
         // Save to database
         await this.saveConversationTurn(speaker, text);
-        
+
         // Add to summary service for analysis
         this.summaryService.addConversationTurn(speaker, text);
+
+        // Send transcription to Ask window
+        this.sendTranscriptionToAsk(speaker, text);
+    }
+
+    sendTranscriptionToAsk(speaker, text) {
+        console.log(`[ListenService] sendTranscriptionToAsk called: ${speaker} - "${text}"`);
+
+        const { windowPool } = require('../../window/windowManager');
+        console.log('[ListenService] windowPool:', windowPool ? 'exists' : 'null');
+
+        const askWindow = windowPool?.get('ask');
+        console.log('[ListenService] askWindow:', askWindow ? 'exists' : 'null', askWindow && !askWindow.isDestroyed() ? '(not destroyed)' : '(destroyed or null)');
+
+        if (askWindow && !askWindow.isDestroyed()) {
+            askWindow.webContents.send('transcription-received', {
+                speaker: speaker,
+                text: text,
+                timestamp: Date.now()
+            });
+            console.log(`[ListenService] ✅ Sent transcription to Ask window: ${speaker} - ${text}`);
+        } else {
+            console.warn('[ListenService] ❌ Ask window not available to send transcription');
+        }
     }
 
     async saveConversationTurn(speaker, transcription) {

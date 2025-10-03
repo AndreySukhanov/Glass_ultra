@@ -184,6 +184,12 @@ export class AskView extends LitElement {
             box-sizing: border-box;
             position: relative;
             overflow: hidden;
+            -webkit-app-region: drag;
+        }
+
+        /* Interactive elements should not drag the window */
+        button, input, textarea {
+            -webkit-app-region: no-drag;
         }
 
         .ask-container::before {
@@ -371,6 +377,7 @@ export class AskView extends LitElement {
             min-height: 0;
             max-height: 400px;
             position: relative;
+            -webkit-app-region: no-drag;
         }
 
         .response-container.hidden {
@@ -495,6 +502,7 @@ export class AskView extends LitElement {
             flex-shrink: 0;
             transition: opacity 0.1s ease-in-out, transform 0.1s ease-in-out;
             transform-origin: bottom;
+            -webkit-app-region: no-drag;
         }
 
         .text-input-container.hidden {
@@ -786,6 +794,14 @@ export class AskView extends LitElement {
 
             window.api.askView.onScrollResponseUp(() => this.handleScroll('up'));
             window.api.askView.onScrollResponseDown(() => this.handleScroll('down'));
+
+            // Listen for transcriptions from Listen service
+            window.api.receive('transcription-received', (data) => {
+                console.log('[AskView] Received transcription:', data);
+                const transcriptionText = `${data.speaker}: ${data.text}`;
+                this.handleSendText(null, transcriptionText);
+            });
+
             window.api.askView.onAskStateUpdate((event, newState) => {
                 this.currentResponse = newState.currentResponse;
                 this.currentQuestion = newState.currentQuestion;
