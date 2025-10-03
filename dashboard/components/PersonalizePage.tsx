@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Save, User, Briefcase, Target, Heart } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -15,19 +15,80 @@ export default function PersonalizePage() {
     preferredTone: 'professional',
     language: 'ru',
   })
+  const [loading, setLoading] = useState(true)
+
+  // Load existing personalization data on mount
+  useEffect(() => {
+    const loadPersonalization = async () => {
+      try {
+        const response = await fetch('/api/personalization')
+        const result = await response.json()
+
+        if (result.success && result.data) {
+          setFormData({
+            name: result.data.name || '',
+            role: result.data.role || '',
+            company: result.data.company || '',
+            goals: result.data.goals || '',
+            interests: result.data.interests || '',
+            workStyle: result.data.work_style || '',
+            preferredTone: result.data.preferred_tone || 'professional',
+            language: result.data.language || 'ru',
+          })
+        }
+      } catch (error) {
+        console.error('Failed to load personalization:', error)
+        toast.error('Не удалось загрузить настройки персонализации')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadPersonalization()
+  }, [])
 
   const handleSave = async () => {
     try {
-      // TODO: Подключить к backend для сохранения
-      toast.success('Настройки сохранены!')
-      console.log('Saving personalization data:', formData)
+      const response = await fetch('/api/personalization', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: formData.name,
+          role: formData.role,
+          company: formData.company,
+          goals: formData.goals,
+          interests: formData.interests,
+          work_style: formData.workStyle,
+          preferred_tone: formData.preferredTone,
+          language: formData.language,
+        }),
+      })
+
+      const result = await response.json()
+
+      if (result.success) {
+        toast.success('Настройки сохранены!')
+      } else {
+        throw new Error(result.error || 'Failed to save')
+      }
     } catch (error) {
+      console.error('Error saving personalization:', error)
       toast.error('Ошибка при сохранении настроек')
     }
   }
 
   const handleChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }))
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-gray-500">Загрузка...</div>
+      </div>
+    )
   }
 
   return (

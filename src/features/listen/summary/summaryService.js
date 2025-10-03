@@ -4,6 +4,7 @@ const { createLLM } = require('../../common/ai/factory');
 const sessionRepository = require('../../common/repositories/session');
 const summaryRepository = require('./repositories');
 const modelStateService = require('../../common/services/modelStateService');
+const personalizationRepository = require('../../settings/repositories/personalization.repository');
 
 class SummaryService {
     constructor() {
@@ -91,11 +92,22 @@ Please build upon this context while analyzing the new conversation segments.
         }
 
         const basePrompt = getSystemPrompt('pickle_glass_analysis', '', false);
-        const systemPrompt = basePrompt.replace('{{CONVERSATION_HISTORY}}', recentConversation);
+        let systemPrompt = basePrompt.replace('{{CONVERSATION_HISTORY}}', recentConversation);
 
         try {
             if (this.currentSessionId) {
                 await sessionRepository.touch(this.currentSessionId);
+            }
+
+            // Add personalization to system prompt
+            try {
+                const personalizationPrompt = await personalizationRepository.getAsSystemPrompt();
+                if (personalizationPrompt) {
+                    systemPrompt += '\n\nUser Context:\n' + personalizationPrompt;
+                    console.log('[SummaryService] Added personalization to system prompt');
+                }
+            } catch (error) {
+                console.error('[SummaryService] Error loading personalization:', error);
             }
 
             const modelInfo = await modelStateService.getCurrentModelInfo('llm');
@@ -103,7 +115,7 @@ Please build upon this context while analyzing the new conversation segments.
                 throw new Error('AI model or API key is not configured.');
             }
             console.log(`🤖 Sending analysis request to ${modelInfo.provider} using model ${modelInfo.model}`);
-            
+
             const messages = [
                 {
                     role: 'system',

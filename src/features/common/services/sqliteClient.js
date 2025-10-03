@@ -209,6 +209,14 @@ class SQLiteClient {
     async initTables() {
         await this.synchronizeSchema();
         this.initDefaultData();
+
+        // Initialize personalization table
+        try {
+            const personalizationRepository = require('../../settings/repositories/personalization.repository');
+            await personalizationRepository.initializeTable();
+        } catch (error) {
+            console.error('[SQLiteClient] Failed to initialize personalization table:', error);
+        }
     }
 
     initDefaultData() {

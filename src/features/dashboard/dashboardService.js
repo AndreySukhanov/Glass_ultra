@@ -1,6 +1,7 @@
 const { spawn } = require('child_process');
 const path = require('path');
 const { app, shell } = require('electron');
+const dashboardApiServer = require('./dashboardApiServer');
 
 class DashboardService {
     constructor() {
@@ -11,6 +12,15 @@ class DashboardService {
 
     async startDashboard() {
         console.log('[DashboardService] Starting web dashboard...');
+
+        // Start the API server for dashboard-electron communication
+        try {
+            await dashboardApiServer.start();
+            console.log('[DashboardService] API server started successfully');
+        } catch (error) {
+            console.error('[DashboardService] Failed to start API server:', error);
+            // Continue even if API server fails - dashboard might still be useful
+        }
 
         // Check if dashboard is already running
         if (this.dashboardProcess) {
@@ -108,9 +118,17 @@ class DashboardService {
             console.log('[DashboardService] Stopping dashboard process...');
             this.dashboardProcess.kill();
             this.dashboardProcess = null;
-            return { success: true };
         }
-        return { success: true, message: 'Dashboard was not running' };
+
+        // Also stop the API server
+        try {
+            await dashboardApiServer.stop();
+            console.log('[DashboardService] API server stopped');
+        } catch (error) {
+            console.error('[DashboardService] Error stopping API server:', error);
+        }
+
+        return { success: true };
     }
 
     isDashboardRunning() {

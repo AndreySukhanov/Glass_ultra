@@ -18,6 +18,7 @@ const { getSystemPrompt } = require('../common/prompts/promptBuilder');
 const systemPromptRepository = require('../common/repositories/systemPrompt/sqlite.repository');
 const fileAttachmentRepository = require('../common/repositories/fileAttachment/sqlite.repository');
 const authService = require('../common/services/authService');
+const personalizationRepository = require('../settings/repositories/personalization.repository');
 const ragService = require('../common/services/ragService');
 const path = require('node:path');
 const fs = require('node:fs');
@@ -269,8 +270,8 @@ class AskService {
 
             const user = authService.getCurrentUser();
 
-            // Parallel: Get custom prompt + RAG search + screenshot
-            const [customPrompt, ragChunks] = await Promise.all([
+            // Parallel: Get custom prompt + RAG search + screenshot + personalization
+            const [customPrompt, ragChunks, personalizationPrompt] = await Promise.all([
                 // Get custom system prompt
                 (async () => {
                     try {
@@ -318,8 +319,25 @@ class AskService {
                         console.error('[AskService] Error with RAG:', error);
                         return null;
                     }
+                })(),
+
+                // Get personalization prompt
+                (async () => {
+                    try {
+                        const personalPrompt = await personalizationRepository.getAsSystemPrompt();
+                        return personalPrompt;
+                    } catch (error) {
+                        console.error('[AskService] Error loading personalization:', error);
+                        return null;
+                    }
                 })()
             ]);
+
+            // Add personalization to system prompt (first, as it's about the user)
+            if (personalizationPrompt) {
+                systemPrompt += '\n\nUser Context:\n' + personalizationPrompt;
+                console.log('[AskService] Added personalization to system prompt');
+            }
 
             // Add custom prompt to system prompt
             if (customPrompt) {
