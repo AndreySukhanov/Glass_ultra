@@ -7,6 +7,30 @@
 
 require('dotenv').config();
 
+// Set console encoding to UTF-8 for Windows to support Cyrillic characters
+if (process.platform === 'win32') {
+    try {
+        // Set stdout and stderr to UTF-8
+        if (process.stdout && process.stdout.setEncoding) {
+            process.stdout.setEncoding('utf8');
+        }
+        if (process.stderr && process.stderr.setEncoding) {
+            process.stderr.setEncoding('utf8');
+        }
+
+        // Execute chcp 65001 to set console code page to UTF-8
+        const { execSync } = require('child_process');
+        try {
+            execSync('chcp 65001', { stdio: 'ignore' });
+            console.log('[Encoding] Console code page set to UTF-8 (65001)');
+        } catch (e) {
+            // Silent fail - not critical
+        }
+    } catch (err) {
+        console.error('[Encoding] Failed to set UTF-8 encoding:', err);
+    }
+}
+
 // Handle EPIPE errors globally to prevent crashes
 process.stdout.on('error', (err) => {
     if (err.code === 'EPIPE') {

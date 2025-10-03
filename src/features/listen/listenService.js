@@ -263,10 +263,16 @@ class ListenService {
     async closeSession() {
         try {
             this.sendToRenderer('change-listen-capture-state', { status: "stop" });
-            // Close STT sessions
+
+            // Stop audio capture immediately to prevent new audio
+            await this.stopMacOSAudioCapture();
+
+            // Close STT sessions immediately (cuts off AI processing at current point)
+            // This will flush whatever AI has already transcribed
             await this.sttService.closeSessions();
 
-            await this.stopMacOSAudioCapture();
+            // Small delay to allow flush callbacks to fire
+            await new Promise(resolve => setTimeout(resolve, 100));
 
             // End database session
             if (this.currentSessionId) {

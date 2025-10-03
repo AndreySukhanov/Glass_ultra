@@ -6,7 +6,8 @@ module.exports = {
   initialize() {
     // initialize 시점에 windowManager를 require하여 circular dependency 문제 해결
     const windowManager = require('../window/windowManager');
-    
+    const dashboardService = require('../features/dashboard/dashboardService');
+
     // 기존 IPC 핸들러들
     ipcMain.handle('toggle-content-protection', () => windowManager.toggleContentProtection());
     ipcMain.handle('resize-header-window', (event, args) => windowManager.resizeHeaderWindow(args));
@@ -16,7 +17,10 @@ module.exports = {
     ipcMain.on('cancel-hide-settings-window', () => windowManager.cancelHideSettingsWindow());
 
     ipcMain.handle('open-login-page', () => windowManager.openLoginPage());
-    ipcMain.handle('open-personalize-page', () => windowManager.openLoginPage());
+    ipcMain.handle('open-personalize-page', async () => {
+      console.log('[WindowBridge] Opening dashboard...');
+      return await dashboardService.startDashboard();
+    });
     ipcMain.handle('move-window-step', (event, direction) => windowManager.moveWindowStep(direction));
     ipcMain.handle('open-external', (event, url) => shell.openExternal(url));
 

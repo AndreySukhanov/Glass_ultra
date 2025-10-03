@@ -113,6 +113,12 @@ async function createSTT({ apiKey, language = 'en', callbacks = {}, usePortkey =
         },
         // Expose keepAlive so higher-level services can schedule heart-beats
         keepAlive,
+        // Force commit audio buffer to get transcription immediately
+        commitAudioBuffer: () => {
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'input_audio_buffer.commit' }));
+          }
+        },
         close: () => {
           if (ws.readyState === WebSocket.OPEN) {
             ws.send(JSON.stringify({ type: 'session.close' }));
@@ -132,6 +138,12 @@ async function createSTT({ apiKey, language = 'en', callbacks = {}, usePortkey =
       catch { return; }                       // JSON 파싱 실패 무시
 
       if (!msg || typeof msg !== 'object') return;
+
+      // Filter out "buffer too small" errors (expected when commit called too early)
+      if (msg.type === 'error' && msg.error?.message?.includes('buffer too small')) {
+        console.log('[OpenAI STT] Skipping expected error: buffer too small (commit called before 100ms of audio)');
+        return;
+      }
 
       msg.provider = 'openai';                // ← 항상 명시
       callbacks.onmessage?.(msg);

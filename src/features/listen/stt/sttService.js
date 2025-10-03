@@ -26,13 +26,13 @@ class SttService {
         this.theirSttSession = null;
         this.myCurrentUtterance = '';
         this.theirCurrentUtterance = '';
-        
+
         // Turn-completion debouncing
         this.myCompletionBuffer = '';
         this.theirCompletionBuffer = '';
         this.myCompletionTimer = null;
         this.theirCompletionTimer = null;
-        
+
         // System audio capture
         this.systemAudioProc = null;
 
@@ -40,11 +40,15 @@ class SttService {
         this.keepAliveInterval = null;
         this.sessionRenewTimeout = null;
 
+        // Audio duration tracking for commit (need 100ms minimum)
+        this.myAudioStartTime = null;
+        this.theirAudioStartTime = null;
+
         // Callbacks
         this.onTranscriptionComplete = null;
         this.onStatusUpdate = null;
 
-        this.modelInfo = null; 
+        this.modelInfo = null;
     }
 
     setCallbacks({ onTranscriptionComplete, onStatusUpdate }) {
@@ -74,8 +78,12 @@ class SttService {
     }
 
     flushMyCompletion() {
+        console.log(`[SttService] flushMyCompletion called - buffer: "${this.myCompletionBuffer}", utterance: "${this.myCurrentUtterance}"`);
         const finalText = (this.myCompletionBuffer + this.myCurrentUtterance).trim();
-        if (!this.modelInfo || !finalText) return;
+        if (!this.modelInfo || !finalText) {
+            console.log('[SttService] No text to flush (empty buffers)');
+            return;
+        }
 
         console.log(`[SttService] flushMyCompletion: "${finalText}"`);
 
@@ -556,9 +564,15 @@ class SttService {
     async sendMicAudioContent(data, mimeType) {
         // const provider = await this.getAiProvider();
         // const isGemini = provider === 'gemini';
-        
+
         if (!this.mySttSession) {
             throw new Error('User STT session not active');
+        }
+
+        // Track first audio packet time for minimum duration check
+        if (!this.myAudioStartTime) {
+            this.myAudioStartTime = Date.now();
+            console.log('[SttService] Started tracking My audio duration');
         }
 
         let modelInfo = this.modelInfo;
@@ -574,7 +588,7 @@ class SttService {
         if (modelInfo.provider === 'gemini') {
             payload = { audio: { data, mimeType: mimeType || 'audio/pcm;rate=24000' } };
         } else if (modelInfo.provider === 'deepgram') {
-            payload = Buffer.from(data, 'base64'); 
+            payload = Buffer.from(data, 'base64');
         } else {
             payload = data;
         }
@@ -584,6 +598,12 @@ class SttService {
     async sendSystemAudioContent(data, mimeType) {
         if (!this.theirSttSession) {
             throw new Error('Their STT session not active');
+        }
+
+        // Track first audio packet time for minimum duration check
+        if (!this.theirAudioStartTime) {
+            this.theirAudioStartTime = Date.now();
+            console.log('[SttService] Started tracking Their audio duration');
         }
 
         let modelInfo = this.modelInfo;
@@ -766,7 +786,7 @@ class SttService {
             this.sessionRenewTimeout = null;
         }
 
-        // Clear timers
+        // Clear timers BEFORE flushing to prevent race conditions
         if (this.myCompletionTimer) {
             clearTimeout(this.myCompletionTimer);
             this.myCompletionTimer = null;
@@ -775,6 +795,69 @@ class SttService {
             clearTimeout(this.theirCompletionTimer);
             this.theirCompletionTimer = null;
         }
+
+        // IMPORTANT: Move current utterances into completion buffers immediately
+        // This ensures we capture text that's being spoken when Stop is pressed
+        if (this.myCurrentUtterance && this.myCurrentUtterance.trim()) {
+            console.log(`[SttService] Moving current My utterance to buffer: "${this.myCurrentUtterance}"`);
+            if (this.modelInfo?.provider === 'gemini') {
+                this.myCompletionBuffer += this.myCurrentUtterance;
+            } else {
+                this.myCompletionBuffer += (this.myCompletionBuffer ? ' ' : '') + this.myCurrentUtterance;
+            }
+            this.myCurrentUtterance = '';
+        }
+
+        if (this.theirCurrentUtterance && this.theirCurrentUtterance.trim()) {
+            console.log(`[SttService] Moving current Their utterance to buffer: "${this.theirCurrentUtterance}"`);
+            if (this.modelInfo?.provider === 'gemini') {
+                this.theirCompletionBuffer += this.theirCurrentUtterance;
+            } else {
+                this.theirCompletionBuffer += (this.theirCompletionBuffer ? ' ' : '') + this.theirCurrentUtterance;
+            }
+            this.theirCurrentUtterance = '';
+        }
+
+        // Force commit audio buffers to get immediate transcription
+        // Only commit if we have at least 100ms of audio (OpenAI requirement)
+        const MIN_AUDIO_DURATION_MS = 100;
+        let commitCalled = false;
+
+        if (this.mySttSession?.commitAudioBuffer) {
+            const myAudioDuration = this.myAudioStartTime ? Date.now() - this.myAudioStartTime : 0;
+            console.log(`[SttService] My audio duration: ${myAudioDuration}ms`);
+
+            if (myAudioDuration >= MIN_AUDIO_DURATION_MS) {
+                console.log('[SttService] Sending commitAudioBuffer for My session');
+                this.mySttSession.commitAudioBuffer();
+                commitCalled = true;
+            } else {
+                console.log(`[SttService] Skipping My commit (insufficient audio: ${myAudioDuration}ms < ${MIN_AUDIO_DURATION_MS}ms)`);
+            }
+        }
+
+        if (this.theirSttSession?.commitAudioBuffer) {
+            const theirAudioDuration = this.theirAudioStartTime ? Date.now() - this.theirAudioStartTime : 0;
+            console.log(`[SttService] Their audio duration: ${theirAudioDuration}ms`);
+
+            if (theirAudioDuration >= MIN_AUDIO_DURATION_MS) {
+                console.log('[SttService] Sending commitAudioBuffer for Their session');
+                this.theirSttSession.commitAudioBuffer();
+                commitCalled = true;
+            } else {
+                console.log(`[SttService] Skipping Their commit (insufficient audio: ${theirAudioDuration}ms < ${MIN_AUDIO_DURATION_MS}ms)`);
+            }
+        }
+
+        // Wait for commit response from OpenAI only if we actually called commit
+        if (commitCalled) {
+            console.log('[SttService] Waiting 1000ms for commit response...');
+            await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+
+        // Flush whatever we got - this will now include partial utterances
+        this.flushMyCompletion();
+        this.flushTheirCompletion();
 
         const closePromises = [];
         if (this.mySttSession) {
@@ -794,7 +877,9 @@ class SttService {
         this.theirCurrentUtterance = '';
         this.myCompletionBuffer = '';
         this.theirCompletionBuffer = '';
-        this.modelInfo = null; 
+        this.myAudioStartTime = null;
+        this.theirAudioStartTime = null;
+        this.modelInfo = null;
     }
 }
 
