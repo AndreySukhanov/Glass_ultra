@@ -291,12 +291,31 @@ class AskService {
                         if (!user) return null;
 
                         const attachments = fileAttachmentRepository.getActiveAttachments(user.uid);
-                        if (!attachments || attachments.length === 0) return null;
+                        if (!attachments || attachments.length === 0) {
+                            console.log('[AskService] No active attachments found');
+                            return null;
+                        }
+
+                        console.log(`[AskService] Found ${attachments.length} active attachment(s)`);
 
                         // Initialize RAG if needed
                         if (!ragService.initialized) {
+                            console.log('[AskService] Initializing RAG service...');
                             const currentApiKey = await modelStateService.getApiKey('openai');
+
+                            if (!currentApiKey) {
+                                console.warn('[AskService] No OpenAI API key found - RAG requires OpenAI for embeddings');
+                                return null;
+                            }
+
                             await ragService.initialize(currentApiKey);
+                            console.log('[AskService] RAG service initialized successfully');
+                        }
+
+                        // Update API key if it changed
+                        const currentApiKey = await modelStateService.getApiKey('openai');
+                        if (currentApiKey && ragService.openai) {
+                            ragService.setApiKey(currentApiKey);
                         }
 
                         console.log('[AskService] Using RAG to retrieve relevant document chunks...');
@@ -307,16 +326,17 @@ class AskService {
                         });
 
                         if (chunks && chunks.length > 0) {
-                            console.log(`[AskService] Found ${chunks.length} relevant chunks`);
+                            console.log(`[AskService] Found ${chunks.length} relevant chunks from RAG`);
                             return { chunks, attachments };
                         }
 
                         // Fallback: if RAG finds nothing, return attachments for full text
-                        console.log('[AskService] No relevant chunks found, will use full attachments');
+                        console.log('[AskService] No relevant chunks found in RAG, will use full attachments');
                         return { chunks: [], attachments };
 
                     } catch (error) {
                         console.error('[AskService] Error with RAG:', error);
+                        console.error(error.stack);
                         return null;
                     }
                 })(),

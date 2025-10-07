@@ -105,6 +105,15 @@ export class AskView extends LitElement {
             cursor: text !important;
         }
 
+        .response-container p,
+        .response-container li,
+        .response-container td,
+        .response-container th {
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            white-space: normal;
+        }
+
         .response-container pre {
             background: rgba(0, 0, 0, 0.4) !important;
             border-radius: 8px !important;
@@ -378,6 +387,9 @@ export class AskView extends LitElement {
             max-height: 400px;
             position: relative;
             -webkit-app-region: no-drag;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            white-space: normal;
         }
 
         .response-container.hidden {

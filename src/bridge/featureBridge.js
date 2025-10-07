@@ -332,21 +332,28 @@ module.exports = {
         // Add to database
         const attachment = await fileAttachmentRepository.addAttachment(user.uid, filepath, filename, result.text, mimetype);
 
-        // Initialize RAG service if needed
-        if (!ragService.initialized) {
-          const currentApiKey = await modelStateService.getApiKey('openai');
-          await ragService.initialize(currentApiKey);
-        }
-
-        // Add document to RAG vector store
+        // Try to add to RAG vector store (optional - doesn't fail if unavailable)
         try {
-          await ragService.addDocument(
-            attachment.id,
-            filename,
-            result.text,
-            { userId: user.uid, filepath, mimetype }
-          );
-          console.log('[FeatureBridge] Document added to RAG vector store');
+          // Initialize RAG service if needed
+          if (!ragService.initialized) {
+            const currentApiKey = await modelStateService.getApiKey('openai');
+            if (currentApiKey) {
+              await ragService.initialize(currentApiKey);
+            } else {
+              console.log('[FeatureBridge] No OpenAI key available, skipping RAG initialization');
+            }
+          }
+
+          // Add document to RAG if initialized
+          if (ragService.initialized) {
+            await ragService.addDocument(
+              attachment.id,
+              filename,
+              result.text,
+              { userId: user.uid, filepath, mimetype }
+            );
+            console.log('[FeatureBridge] Document added to RAG vector store');
+          }
         } catch (ragError) {
           console.warn('[FeatureBridge] Failed to add to RAG (continuing anyway):', ragError.message);
           // Don't fail the whole operation if RAG fails

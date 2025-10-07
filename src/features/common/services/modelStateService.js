@@ -231,6 +231,11 @@ class ModelStateService extends EventEmitter {
         return { success: true };
     }
 
+    async getApiKey(provider) {
+        const setting = await providerSettingsRepository.getByProvider(provider);
+        return setting?.api_key || null;
+    }
+
     async getAllApiKeys() {
         const allSettings = await providerSettingsRepository.getAll();
         const apiKeys = {};

@@ -9,10 +9,16 @@ const path = require('path');
  * @returns {array} Array of file attachment objects
  */
 function getActiveAttachments(uid) {
-    return sqliteClient.query(
+    console.log(`[FileAttachmentRepo] Getting active attachments for user: ${uid}`);
+    const results = sqliteClient.query(
         'SELECT * FROM file_attachments WHERE uid = ? AND is_active = 1 ORDER BY created_at DESC',
         [uid]
     );
+    console.log(`[FileAttachmentRepo] Found ${results.length} active attachment(s)`);
+    if (results.length > 0) {
+        results.forEach(r => console.log(`  - ${r.filename} (ID: ${r.id}, active: ${r.is_active})`));
+    }
+    return results;
 }
 
 /**
@@ -21,10 +27,16 @@ function getActiveAttachments(uid) {
  * @returns {array} Array of file attachment objects
  */
 function getAllAttachments(uid) {
-    return sqliteClient.query(
+    console.log(`[FileAttachmentRepo] Getting ALL attachments for user: ${uid}`);
+    const results = sqliteClient.query(
         'SELECT * FROM file_attachments WHERE uid = ? ORDER BY created_at DESC',
         [uid]
     );
+    console.log(`[FileAttachmentRepo] Found ${results.length} total attachment(s)`);
+    if (results.length > 0) {
+        results.forEach(r => console.log(`  - ${r.filename} (ID: ${r.id}, active: ${r.is_active})`));
+    }
+    return results;
 }
 
 /**
@@ -41,12 +53,17 @@ function addAttachment(uid, filepath, filename, content, mimetype) {
     const now = Date.now();
     const filesize = Buffer.byteLength(content, 'utf8');
 
+    console.log(`[FileAttachmentRepo] Adding attachment: ${filename} for user ${uid}`);
+    console.log(`[FileAttachmentRepo] File size: ${filesize} bytes, type: ${mimetype}`);
+
     sqliteClient.query(
         `INSERT INTO file_attachments
          (id, uid, filename, filepath, filesize, mimetype, content, is_active, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
         [id, uid, filename, filepath, filesize, mimetype, content, now, now]
     );
+
+    console.log(`[FileAttachmentRepo] Attachment added successfully with ID: ${id}`);
 
     return {
         id,
