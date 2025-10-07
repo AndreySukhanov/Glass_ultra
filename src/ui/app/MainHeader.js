@@ -484,10 +484,18 @@ export class MainHeader extends LitElement {
                     })[this.listenSessionStatus] || 'beforeSession';
                 } else {
                     this.listenSessionStatus = 'beforeSession';
+                    this.isTogglingSession = false; // Сбрасываем только при ошибке
                 }
-                this.isTogglingSession = false; // ✨ 로딩 상태만 해제
             };
             window.api.mainHeader.onListenChangeSessionResult(this._sessionStateTextListener);
+
+            // Сбрасываем loading state когда захват аудио РЕАЛЬНО начнётся
+            this._captureStateListener = (event, data) => {
+                if (data?.status === 'start') {
+                    this.isTogglingSession = false;
+                }
+            };
+            window.api.mainHeader.onChangeListenCaptureState(this._captureStateListener);
 
             this._shortcutListener = (event, keybinds) => {
                 console.log('[MainHeader] Received updated shortcuts:', keybinds);
@@ -509,6 +517,9 @@ export class MainHeader extends LitElement {
         if (window.api) {
             if (this._sessionStateTextListener) {
                 window.api.mainHeader.removeOnListenChangeSessionResult(this._sessionStateTextListener);
+            }
+            if (this._captureStateListener) {
+                window.api.mainHeader.removeOnChangeListenCaptureState(this._captureStateListener);
             }
             if (this._shortcutListener) {
                 window.api.mainHeader.removeOnShortcutsUpdated(this._shortcutListener);
