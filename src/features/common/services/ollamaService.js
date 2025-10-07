@@ -932,10 +932,10 @@ class OllamaService extends EventEmitter {
     // 주기적 동기화 시작
     startPeriodicSync() {
         if (this._syncInterval) return;
-        
+
         this._syncInterval = setInterval(() => {
             this.syncState();
-        }, 30000); // 30초마다
+        }, 120000); // 2분마다 (최적화: 이전 30초에서 변경)
     }
 
     stopPeriodicSync() {

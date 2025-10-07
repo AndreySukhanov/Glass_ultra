@@ -526,11 +526,11 @@ class LocalAIManager extends EventEmitter {
     /**
      * 주기적 상태 동기화 시작
      */
-    startPeriodicSync(interval = 30000) {
+    startPeriodicSync(interval = 120000) { // 2분마다 (최적화: 이전 30초에서 변경)
         if (this.syncInterval) {
             return;
         }
-        
+
         this.syncInterval = setInterval(async () => {
             for (const serviceName of Object.keys(this.services)) {
                 await this.updateServiceState(serviceName);

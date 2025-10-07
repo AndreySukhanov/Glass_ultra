@@ -123,4 +123,9 @@ data/*.db-wal
 # Build output
 out/
 dist/
-build/ 
+build/
+
+# Temporary test/debug files
+activate-file*.js
+check-db.js
+nul 
