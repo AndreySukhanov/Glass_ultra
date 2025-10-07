@@ -160,31 +160,42 @@ export class MainHeader extends LitElement {
             display: none;
         }
 
+        .loading-indicator {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 11px;
+            color: rgba(255, 255, 255, 0.9);
+            font-weight: 500;
+        }
+
         .loading-dots {
             display: flex;
             align-items: center;
-            gap: 5px;
+            gap: 3px;
         }
 
         .loading-dots span {
-            width: 6px;
-            height: 6px;
+            width: 4px;
+            height: 4px;
             background-color: white;
             border-radius: 50%;
-            animation: pulse 1.4s infinite ease-in-out both;
+            animation: pulse 1.2s infinite ease-in-out both;
         }
         .loading-dots span:nth-of-type(1) {
-            animation-delay: -0.32s;
+            animation-delay: -0.24s;
         }
         .loading-dots span:nth-of-type(2) {
-            animation-delay: -0.16s;
+            animation-delay: -0.12s;
         }
         @keyframes pulse {
             0%, 80%, 100% {
-                opacity: 0.2;
+                opacity: 0.3;
+                transform: scale(0.8);
             }
             40% {
                 opacity: 1.0;
+                transform: scale(1.2);
             }
         }
 
@@ -616,8 +627,11 @@ export class MainHeader extends LitElement {
                 >
                     ${this.isTogglingSession
                         ? html`
-                            <div class="loading-dots">
-                                <span></span><span></span><span></span>
+                            <div class="loading-indicator">
+                                <span style="font-size: 10px;">Подключение</span>
+                                <div class="loading-dots">
+                                    <span></span><span></span><span></span>
+                                </div>
                             </div>
                         `
                         : html`
