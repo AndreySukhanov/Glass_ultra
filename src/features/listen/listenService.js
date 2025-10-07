@@ -203,6 +203,10 @@ class ListenService {
                 throw new Error('Failed to initialize database session');
             }
 
+            // Начинаем захват аудио СРАЗУ, до инициализации STT
+            this.sendToRenderer('change-listen-capture-state', { status: "start" });
+            console.log('[ListenService] Audio capture started (before STT initialization)');
+
             /* ---------- STT Initialization Retry Logic ---------- */
             const MAX_RETRY = 10;
             const RETRY_DELAY_MS = 300;   // 0.3 seconds
@@ -226,18 +230,19 @@ class ListenService {
             /* ------------------------------------------- */
 
             console.log('✅ Listen service initialized successfully.');
-            
+
             this.sendToRenderer('update-status', 'Connected. Ready to listen.');
-            
+
             return true;
         } catch (error) {
             console.error('❌ Failed to initialize listen service:', error);
             this.sendToRenderer('update-status', 'Initialization failed.');
+            // Останавливаем захват в случае ошибки
+            this.sendToRenderer('change-listen-capture-state', { status: "stop" });
             return false;
         } finally {
             this.isInitializingSession = false;
             this.sendToRenderer('session-initializing', false);
-            this.sendToRenderer('change-listen-capture-state', { status: "start" });
         }
     }
 
