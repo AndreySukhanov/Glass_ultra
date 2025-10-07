@@ -160,15 +160,6 @@ export class MainHeader extends LitElement {
             display: none;
         }
 
-        .loading-indicator {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            font-size: 11px;
-            color: rgba(255, 255, 255, 0.9);
-            font-weight: 500;
-        }
-
         .loading-dots {
             display: flex;
             align-items: center;
@@ -627,11 +618,8 @@ export class MainHeader extends LitElement {
                 >
                     ${this.isTogglingSession
                         ? html`
-                            <div class="loading-indicator">
-                                <span style="font-size: 10px;">Подключение</span>
-                                <div class="loading-dots">
-                                    <span></span><span></span><span></span>
-                                </div>
+                            <div class="loading-dots">
+                                <span></span><span></span><span></span>
                             </div>
                         `
                         : html`
